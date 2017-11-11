@@ -29,6 +29,7 @@ const ID = 'id';
 const NAME = 'name';
 const PARENT_ID = 'parentId';
 const LEVEL = 'level';
+const CODE = 'code';
 
 const AH = "addresshierarchy"; 
 const AH_PREFIX = AH + "."; 
@@ -75,6 +76,8 @@ function process(rec) {
   processEntry(level, id, parentId, kh, hierarchy);
 }
 
+var countInParent = {}; // given an entry code, says how many direct sub-entries are counted inside
+
 function processEntry(level, id, parentId, kh, hierarchy) {
 
   if (hierarchy[level] == null) {
@@ -89,8 +92,27 @@ function processEntry(level, id, parentId, kh, hierarchy) {
   entry[LEVEL] = level;
   entry[NAME] = kh;
   entry[PARENT_ID] = parentId;
+  {
+    var code = formatEntryCode(level, id);  // we start by assuming that the entry code is its own ID (so its count)
+    var parentEntry = findParent(entry);
+    if (parentEntry != null) {  // if there is a parent, then the code is built by numbering the entry amongst the parent direct sub-entries
+      var parentCode = parentEntry[CODE]; 
+      if (countInParent[parentCode] == null) {
+        countInParent[parentCode] = 1;
+      }
+      else {
+        countInParent[parentCode]++;
+      }
+      code = parentCode + formatEntryCode(level, countInParent[parentCode]);
+    }
+    entry[CODE] = code;
+  }
 
   hierarchy[level][id] = entry;
+}
+
+function formatEntryCode(level, code) {
+  return ("0" + code).slice(-2); // we assume that there are never more than 99 sub-entries in each entry
 }
 
 function addToOneToManyDictionary(word, translation, map) {
@@ -191,9 +213,10 @@ function findParent(entry) {
 function buildAddressEntryCSVLine(entry) {
 
   var csvLine = "\n";
+  var code = "";
   while (entry !== null) {
 
-    csvLine = revMessages[entry[NAME]] + csvLine;
+    csvLine = revMessages[entry[NAME]] + '^' + entry[CODE] + csvLine;
 
     entry = findParent(entry);
     if (typeof entry == 'undefined') {
